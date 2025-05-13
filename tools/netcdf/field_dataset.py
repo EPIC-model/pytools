@@ -1,8 +1,6 @@
 import netCDF4 as nc
 from .dataset import Dataset
-import re
 import numpy as np
-import os
 
 
 class FieldDataset(Dataset):
@@ -26,21 +24,15 @@ class FieldDataset(Dataset):
             print("Field dataset is 3-dimensional:", self.is_three_dimensional)
 
     def get_size(self) -> int:
+        """
+        Get dataset size (i.e. number of saved time frames).
+        """
         return self._nc_handle.dimensions['t'].size
 
-    @property
-    def extent(self) -> np.ndarray:
-        return self._nc_handle.getncattr("extent")
-
-    @property
-    def ncells(self) -> np.ndarray:
-        return  self._nc_handle.getncattr("ncells")
-
-    @property
-    def origin(self) -> np.ndarray:
-        return  self._nc_handle.getncattr("origin")
-
     def get_axis(self, name: str, copy_periodic: bool = True) -> np.ndarray:
+        """
+        Get grid point values of the x-axis, y-axis or z-axis.
+        """
         if name not in ['x', 'y', 'z']:
             raise ValueError("No axis called '" + name + "'.")
         axis = np.array(self._nc_handle.variables[name])
@@ -49,6 +41,9 @@ class FieldDataset(Dataset):
         return axis
 
     def get_meshgrid(self, copy_periodic: bool = True):
+        """
+        Return grid points in a mesh.
+        """
         x = self.get_axis('x', copy_periodic)
         y = self.get_axis('y', copy_periodic)
         z = self.get_axis('z', copy_periodic)
@@ -65,6 +60,9 @@ class FieldDataset(Dataset):
                  step: int,
                  indices: np.ndarray = None,
                  copy_periodic: bool = True) -> np.ndarray:
+        """
+        Return field data.
+        """
 
         if step < 0:
             raise ValueError("Step number cannot be negative.")

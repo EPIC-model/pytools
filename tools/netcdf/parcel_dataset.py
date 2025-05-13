@@ -15,8 +15,10 @@ class ParcelDataset(Dataset):
 
     def open(self, filename: str):
         super().open(filename)
-
+        self.is_three_dimensional = (self.extent.size == 3)
         self._loaded_step = -1
+        self._n_parcel_files = 0
+
         basename = os.path.basename(filename)
         # 14 Feb 2022
         # https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
@@ -26,157 +28,28 @@ class ParcelDataset(Dataset):
         self._dirname = os.path.dirname(filename)
         if self._dirname == '':
             self._dirname = '.'
-        self._n_parcel_files = 0
         for ff in os.listdir(self._dirname):
             if self._basename in ff and '_parcels.nc' in ff:
                 self._n_parcel_files += 1
 
-    @property
-    def is_parcel_file(self):
-        return self._nctype == "parcels"
+    def get_size(self) -> int:
+        """
+        Get the number of parcel files.
+        """
+        return self._n_parcel_files
 
-    @property
-    def is_parcel_stats_file(self):
-        return self._nctype == "parcel_stats"
+    def get_data(self, name: str, step: int, indices: numpy.ndarray = None) -> np.ndarray:
 
-    @property
-    def is_field_stats_file(self):
-        return self._nctype == "field_stats"
+        self._load_parcel_file(step)
 
-    @property
-    def is_field_file(self):
-        return self._nctype == "fields"
+        data = np.array(self._ncfile.variables[name]).squeeze()
 
-    @property
-    def is_three_dimensional(self):
-        return len(self.get_box_ncells()) == 3
-
-    def get_num_steps(self):
-        if self.is_parcel_file:
-            return self._n_parcel_files
+        if indices is not None:
+            return data[indices, ...]
         else:
-            return self._ncfile.dimensions['t'].size
+            return data
 
-    def get_box_extent(self):
-        return self.get_global_attribute("extent")
-
-    def get_box_ncells(self):
-        return self.get_global_attribute("ncells")
-
-    def get_box_origin(self):
-        return self.get_global_attribute("origin")
-
-    def get_axis(self, name):
-        if not name in ['x', 'y', 'z']:
-            raise ValueError("No axis called '" + name + "'.")
-        axis = self.get_all(name)
-        if name == 'x' or name == 'y':
-            axis = np.append(axis, abs(axis[0]))
-        return axis
-
-    def get_all(self, name):
-        if self.is_parcel_file:
-            raise IOError("This function is not availble for parcel files.")
-        return super().get_all(name)
-
-    def get_dataset(self, step, name, indices=None, copy_periodic=True):
-
-        if not name in self._ncfile.variables.keys():
-            if name in self._derived_fields:
-                return self._get_derived_dataset(step, name, copy_periodic)
-
-        if not self.is_parcel_file:
-            super().get_dataset(step, name)
-
-        if self.is_parcel_file and name == 't':
-            # parcel files store the time as a global attribute
-            self._load_parcel_file(step)
-            return np.array(self._ncfile.variables[name]).squeeze()
-
-        if self.is_parcel_file:
-            self._load_parcel_file(step)
-            if indices is not None:
-                return np.array(self._ncfile.variables[name]).squeeze()[indices, ...]
-            else:
-                return np.array(self._ncfile.variables[name]).squeeze()
-        else:
-            if indices is not None:
-                return np.array(self._ncfile.variables[name][step, ...]).squeeze()[indices, ...]
-            else:
-                fdata = np.array(self._ncfile.variables[name][step, ...]).squeeze()
-
-                if copy_periodic:
-                    fdata = self._copy_periodic_layers(fdata)
-
-                if self.is_three_dimensional:
-                    # change ordering from (z, y, x) to (x, y, z)
-                    fdata = np.transpose(fdata, axes=[2, 1, 0])
-                else:
-                    fdata = np.transpose(fdata, axes=[1, 0])
-
-                return fdata
-
-    def _get_derived_dataset(self, step, name, copy_periodic):
-        if name == 'vorticity_magnitude':
-            x_vor = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
-            y_vor = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
-            z_vor = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
-            return np.sqrt(x_vor ** 2 + y_vor ** 2 + z_vor ** 2)
-        if name == 'helicity':
-            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
-            v = self.get_dataset(step=step, name='y_velocity', copy_periodic=copy_periodic)
-            w = self.get_dataset(step=step, name='z_velocity', copy_periodic=copy_periodic)
-            xi = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
-            eta = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
-            zeta = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
-            return u * xi + v * eta + w * zeta
-        if name == 'cross_helicity_magnitude':
-            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
-            nx, ny, nz = u.shape
-            uvec = np.zeros((nx, ny, nz, 3))
-            ovec = np.zeros((nx, ny, nz, 3))
-            uvec[:, :, :, 0] = u
-            uvec[:, :, :, 1] = self.get_dataset(step=step, name='y_velocity',
-                                                copy_periodic=copy_periodic)
-            uvec[:, :, :, 2] = self.get_dataset(step=step, name='z_velocity',
-                                                copy_periodic=copy_periodic)
-            ovec[:, :, :, 0] = self.get_dataset(step=step, name='x_vorticity',
-                                                copy_periodic=copy_periodic)
-            ovec[:, :, :, 1] = self.get_dataset(step=step, name='y_vorticity',
-                                                copy_periodic=copy_periodic)
-            ovec[:, :, :, 2] = self.get_dataset(step=step, name='z_vorticity',
-                                                copy_periodic=copy_periodic)
-            ch = np.cross(uvec, ovec)
-            x_ch = ch[:, :, :, 0]
-            y_ch = ch[:, :, :, 1]
-            z_ch = ch[:, :, :, 2]
-            return np.sqrt(x_ch ** 2 + y_ch  ** 2 + z_ch ** 2)
-
-        if name == 'kinetic_energy':
-            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
-            v = self.get_dataset(step=step, name='y_velocity', copy_periodic=copy_periodic)
-            w = self.get_dataset(step=step, name='z_velocity', copy_periodic=copy_periodic)
-            return 0.5 * (u ** 2 + v ** 2 + w ** 2)
-        if name == 'enstrophy':
-            xi = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
-            eta = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
-            zeta = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
-            return 0.5 * (xi ** 2 + eta ** 2 + zeta ** 2)
-
-        if name == 'liquid_water_content':
-            h = self.get_dataset(step=step, name='humidity', copy_periodic=copy_periodic)
-            _, _, z = self.get_meshgrid()
-            if not copy_periodic:
-                nx, ny, nz = z.shape
-                z = z[0:nx-1, 0:ny-1, :]
-            len_condense = self.get_physical_quantity('scale_height')
-            q_scale = self.get_physical_quantity('saturation_specific_humidity_at_ground_level')
-            hl = (h / q_scale - np.exp(-z / len_condense))
-            hl = hl * (hl > 0.0)
-            return hl
-
-
-    def get_dataset_attribute(self, name, attr):
+    def get_data_attribute(self, name, attr):
         if not name in self._ncfile.variables.keys():
             raise IOError("Dataset '" + name + "' unknown.")
 
@@ -185,44 +58,7 @@ class ParcelDataset(Dataset):
 
         return self._ncfile.variables[name].getncattr(attr)
 
-    def get_dataset_min_max(self, name, indices=None):
-        nsteps = self.get_num_steps()
-        data = self.get_dataset(0, name, indices=indices)
-        vmax = data.max()
-        vmin = data.min()
-        for step in range(1, nsteps):
-            data = self.get_dataset(step, name, indices=indices)
-            vmax = max(vmax, data.max())
-            vmin = min(vmin, data.min())
-        return vmin, vmax
-
-    def get_global_attribute_names(self):
-        return list(self._ncfile.ncattrs())
-
-    def get_global_attribute(self, name):
-        if not name in self._ncfile.ncattrs():
-            raise IOError("Global attribute '" + name + "' unknown.")
-        attr = self._ncfile.getncattr(name)
-        if isinstance(attr, np.bytes_):
-            attr = attr.decode()
-        return attr
-
-    def get_physical_quantity(self, name):
-        if not name in self._ncfile['physical_quantities'].ncattrs():
-            raise IOError("Physical quantity '" + name + "' unknown.")
-        attr = self._ncfile['physical_quantities'].getncattr(name)
-        if isinstance(attr, np.bytes_):
-            attr = attr.decode()
-        return attr
-
-    def get_diagnostic(self, name):
-        if not name in self._ncfile.variables.keys():
-            raise IOError("Dataset '" + name + "' unknown.")
-        return np.array(self._ncfile.variables[name])
-
     def get_num_parcels(self, step):
-        if not self.is_parcel_file:
-            raise IOError("Not a parcel output file.")
         self._load_parcel_file(step)
         return self._ncfile.dimensions['n_parcels'].size
 
@@ -230,19 +66,16 @@ class ParcelDataset(Dataset):
         if self.is_three_dimensional:
             raise IOError("Not a 2-dimensional dataset.")
 
-        if not self.is_parcel_file:
-            raise IOError("Not a parcel output file.")
-
-        x_pos = self.get_dataset(step, "x_position", indices=indices)
-        z_pos = self.get_dataset(step, "z_position", indices=indices)
+        x_pos = self.get_data("x_position", step=step, indices=indices)
+        z_pos = self.get_data("z_position", step=step, indices=indices)
         position = np.empty((len(x_pos), 2))
         position[:, 0] = x_pos
         position[:, 1] = z_pos
-        V = self.get_dataset(step, "volume", indices=indices)
-        B11 = self.get_dataset(step, "B11", indices=indices)
-        B12 = self.get_dataset(step, "B12", indices=indices)
+        V = self.get_data("volume", step=step, indices=indices)
+        B11 = self.get_data("B11", step=step, indices=indices)
+        B12 = self.get_data("B12", step=step, indices=indices)
         if self._is_compressible:
-            B22 = self.get_dataset(step, "B22", indices=indices)
+            B22 = self.get_data("B22", step=step, indices=indices)
         else:
             B22 = self._get_B22(B11, B12, V)
         a2 = self._get_eigenvalue(B11, B12, B22)
@@ -261,16 +94,13 @@ class ParcelDataset(Dataset):
         if self.is_three_dimensional:
             raise IOError("Not a 2-dimensional dataset.")
 
-        if not self.is_parcel_file:
-            raise IOError("Not a parcel output file.")
-
-        x_pos = self.get_dataset(step, "x_position", indices=indices)
-        z_pos = self.get_dataset(step, "z_position", indices=indices)
-        V = self.get_dataset(step, "volume", indices=indices)
-        B11 = self.get_dataset(step, "B11", indices=indices)
-        B12 = self.get_dataset(step, "B12", indices=indices)
+        x_pos = self.get_data("x_position", step=step, indices=indices)
+        z_pos = self.get_data("z_position", step=step, indices=indices)
+        V = self.get_data("volume", step=step, indices=indices)
+        B11 = self.get_data("B11", step=step, indices=indices)
+        B12 = self.get_data("B12", step=step, indices=indices)
         if self._is_compressible:
-            B22 = self.get_dataset(step, "B22", indices=indices)
+            B22 = self.get_data("B22", step=step, indices=indices)
         else:
             B22 = self._get_B22(B11, B12, V)
         a2 = self._get_eigenvalue(B11, B12, B22)
@@ -288,14 +118,11 @@ class ParcelDataset(Dataset):
         if self.is_three_dimensional:
             raise IOError("Not a 2-dimensional dataset.")
 
-        if not self.is_parcel_file:
-            raise IOError("Not a parcel output file.")
-
-        V = self.get_dataset(step, "volume", indices=indices)
-        B11 = self.get_dataset(step, "B11", indices=indices)
-        B12 = self.get_dataset(step, "B12", indices=indices)
+        V = self.get_data("volume", step=step, indices=indices)
+        B11 = self.get_data("B11", step=step, indices=indices)
+        B12 = self.get_data("B12", step=step, indices=indices)
         if self._is_compressible:
-            B22 = self.get_dataset(step, "B22", indices=indices)
+            B22 = self.get_data("B22", step=step, indices=indices)
         else:
             B22 = self._get_B22(B11, B12, V)
         a2 = self._get_eigenvalue(B11, B12, B22)
@@ -343,20 +170,6 @@ class ParcelDataset(Dataset):
         fname = os.path.join(self._dirname, self._basename + '_' + s + '_parcels.nc')
         self._ncfile = nc.Dataset(fname, "r", format="NETCDF4")
 
-    def _copy_periodic_layers(self, field):
-        if self.is_three_dimensional:
-            nz, ny, nx = field.shape
-            field_copy = np.empty((nz, ny+1, nx+1))
-            field_copy[:, 0:ny, 0:nx] = field.copy()
-            field_copy[:, ny, :] = field_copy[:, 0, :]
-            field_copy[:, :, nx] = field_copy[:, :, 0]
-        else:
-            nz, nx = field.shape
-            field_copy = np.empty((nz, nx+1))
-            field_copy[:, 0:nx] = field.copy()
-            field_copy[:, nx] = field_copy[:, 0]
-        return field_copy
-
     def calculate_intersection_ellipses(self, step, plane, loc):
         """
         Calculates the ellipses from all ellipsoids intersecting
@@ -395,19 +208,19 @@ class ParcelDataset(Dataset):
         hi = origin[j] + dx[j] * (loc + 1)
 
         # get indices of parcels satisfying lo <= pos <= hi
-        pos = self.get_dataset(step, name=dim[j] + '_position')
+        pos = self.get_data(name=dim[j] + '_position', step=step)
         indices = np.where((pos >= lo) & (pos <= hi))[0]
         pos = None
 
-        B11 = self.get_dataset(step, name='B11',        indices=indices)
-        B12 = self.get_dataset(step, name='B12',        indices=indices)
-        B13 = self.get_dataset(step, name='B13',        indices=indices)
-        B22 = self.get_dataset(step, name='B22',        indices=indices)
-        B23 = self.get_dataset(step, name='B23',        indices=indices)
-        V   = self.get_dataset(step, name='volume',     indices=indices)
-        xp  = self.get_dataset(step, name='x_position', indices=indices)
-        yp  = self.get_dataset(step, name='y_position', indices=indices)
-        zp  = self.get_dataset(step, name='z_position', indices=indices)
+        B11 = self.get_data(name='B11',        step=step, indices=indices)
+        B12 = self.get_data(name='B12',        step=step, indices=indices)
+        B13 = self.get_data(name='B13',        step=step, indices=indices)
+        B22 = self.get_data(name='B22',        step=step, indices=indices)
+        B23 = self.get_data(name='B23',        step=step, indices=indices)
+        V   = self.get_data(name='volume',     step=step, indices=indices)
+        xp  = self.get_data(name='x_position', step=step, indices=indices)
+        yp  = self.get_data(name='y_position', step=step, indices=indices)
+        zp  = self.get_data(name='z_position', step=step, indices=indices)
         B33 = self._get_B33(B11, B12, B13, B22, B23, V)
 
         n = len(indices)
@@ -568,17 +381,17 @@ class ParcelDataset(Dataset):
         hi = origin[j] + dx[j] * (loc + 1)
 
         # get indices of parcels satisfying lo < pos < hi
-        pos = self.get_dataset(step, name=dim[j] + '_position')
+        pos = self.get_data(name=dim[j] + '_position', step=step)
         indices = np.where((pos >= lo) & (pos <= hi))[0]
         pos = None
 
 
-        B11 = self.get_dataset(step, name='B11',    indices=indices)
-        B12 = self.get_dataset(step, name='B12',    indices=indices)
-        B13 = self.get_dataset(step, name='B13',    indices=indices)
-        B22 = self.get_dataset(step, name='B22',    indices=indices)
-        B23 = self.get_dataset(step, name='B23',    indices=indices)
-        V   = self.get_dataset(step, name='volume', indices=indices)
+        B11 = self.get_data(name='B11',    step=step, indices=indices)
+        B12 = self.get_data(name='B12',    step=step, indices=indices)
+        B13 = self.get_data(name='B13',    step=step, indices=indices)
+        B22 = self.get_data(name='B22',    step=step, indices=indices)
+        B23 = self.get_data(name='B23',    step=step, indices=indices)
+        V   = self.get_data(name='volume', step=step, indices=indices)
         B33 = self._get_B33(B11, B12, B13, B22, B23, V)
 
         if dim[j] == 'x':
@@ -587,24 +400,24 @@ class ParcelDataset(Dataset):
             B11_proj = B22 - B12 ** 2 * B11
             B12_proj = B23 - B12 * B13 * B11
             B22_proj = B33 - B13 ** 2 * B11
-            pos_1 = self.get_dataset(step, name='y_position', indices=indices)
-            pos_2 = self.get_dataset(step, name='z_position', indices=indices)
+            pos_1 = self.get_data(name='y_position', step=step, indices=indices)
+            pos_2 = self.get_data(name='z_position', step=step, indices=indices)
         elif dim[j] == 'y':
             # xz-plane
             B22 = 1.0 / B22
             B11_proj = B11 - B12 ** 2 * B22
             B12_proj = B13 - B12 * B23 * B22
             B22_proj = B33 - B23 ** 2 * B22
-            pos_1 = self.get_dataset(step, name='x_position', indices=indices)
-            pos_2 = self.get_dataset(step, name='z_position', indices=indices)
+            pos_1 = self.get_data(name='x_position', step=step, indices=indices)
+            pos_2 = self.get_data(name='z_position', step=step, indices=indices)
         else:
             # xy-plane
             B33 = 1.0 / B33
             B11_proj = B11 - B13 ** 2 * B33
             B12_proj = B12 - B13 * B23 * B33
             B22_proj = B22 - B23 ** 2 * B33
-            pos_1 = self.get_dataset(step, name='x_position', indices=indices)
-            pos_2 = self.get_dataset(step, name='y_position', indices=indices)
+            pos_1 = self.get_data(name='x_position', step=step, indices=indices)
+            pos_2 = self.get_data(name='y_position', step=step, indices=indices)
 
         V_proj = np.pi * np.sqrt(B22_proj * B11_proj - B12_proj ** 2)
         return pos_1, pos_2, B11_proj, B12_proj, V_proj, indices
