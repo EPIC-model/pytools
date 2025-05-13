@@ -17,3 +17,13 @@ dset.open(filename)
 dset.close()
 ```
 where other dataset classes are `ParcelDataset` and `StatDataset`.
+
+# How to access data in a dataset
+After loading a dataset, you can access data with
+```
+dset.get_data(name, step)
+```
+where `name` is the data name, e.g. `z_vorticity`, and `step` is an integer. A list of
+available data is printed when you type `print(dset)`. Note that `get_data` accepts
+further options like `copy_periodic` for field datasets. For further info on datasets
+check the corresponding classes (e.g. `help(dset)`).

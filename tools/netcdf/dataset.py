@@ -30,7 +30,7 @@ class Dataset(abc.ABC):
         self._verbose = verbose
         self._filename = str()
 
-    def open(self, filename: str):
+    def open(self, filename: str) -> None:
         if not os.path.exists(filename):
             raise IOError("File '" + filename + "' does not exist.")
         self._nc_handle = nc.Dataset(filename, "r", format="NETCDF4")
@@ -39,13 +39,13 @@ class Dataset(abc.ABC):
         if self._verbose:
             print("Opened", self._filename)
 
-    def close(self):
+    def close(self) -> None:
         self._nc_handle.close()
         if self._verbose:
             print("Closed", self._filename)
 
     @abc.abstractmethod
-    def get_size(self):
+    def get_size(self) -> int:
         pass
 
     @property
@@ -53,7 +53,7 @@ class Dataset(abc.ABC):
         return self._file_type
 
     @abc.abstractmethod
-    def get_data(self, name: str, step: int, **kwargs):
+    def get_data(self, name: str, step: int, **kwargs) -> np.ndarray:
         if not name in self._nc_handle.variables.keys():
             raise IOError("Dataset '" + name + "' unknown.")
 
@@ -61,24 +61,7 @@ class Dataset(abc.ABC):
         if step > n_steps - 1:
             raise ValueError("Dataset has only steps 0 to " + str(n_steps - 1) + ".")
 
-    #def get_all(self, name):
-        #if not name in self._nc_handle.variables.keys():
-            #raise IOError("Dataset '" + name + "' unknown.")
-        #return np.array(self._nc_handle.variables[name])
-
-    #def get_meshgrid(self, **kwargs):
-        #x = self.get_axis('x', **kwargs)
-        #y = self.get_axis('y', **kwargs)
-        #z = self.get_axis('z', **kwargs)
-
-        #xg, yg, zg = np.meshgrid(x, y, z, indexing='ij')
-        #assert np.all(xg[:, 0, 0] == x)
-        #assert np.all(yg[0, :, 0] == y)
-        #assert np.all(zg[0, 0, :] == z)
-
-        #return xg, yg, zg
-
-    def has_global_attributes(self):
+    def _has_global_attributes(self):
         return not self._nc_handle.ncattrs() == []
 
     # 18 Feb 2022
@@ -86,7 +69,7 @@ class Dataset(abc.ABC):
     # 19 Feb 2022
     # https://stackoverflow.com/questions/873327/pythons-most-efficient-way-to-choose-longest-string-in-list
     def __str__(self):
-        if self.has_global_attributes():
+        if self._has_global_attributes():
             print("=" * 80)
             # print global attributes
             print("GLOBAL ATTRIBUTES:")
