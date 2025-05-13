@@ -1,0 +1,218 @@
+import netCDF4 as nc
+from .dataset import Dataset
+import re
+import numpy as np
+import os
+
+
+class FieldDataset(Dataset):
+
+    def __init__(self, verbose: bool = False):
+        super().__init__(verbose)
+
+        self._derived_fields = [
+            'vorticity_magnitude',
+            'helicity',
+            'enstrophy',
+            'cross_helicity_magnitude',
+            'kinetic_energy',
+            'liquid_water_content'
+        ]
+
+    def open(self, filename: str):
+        super().open(filename)
+
+    #@property
+    #def is_parcel_file(self):
+        #return self._nctype == "parcels"
+
+    #@property
+    #def is_parcel_stats_file(self):
+        #return self._nctype == "parcel_stats"
+
+    #@property
+    #def is_field_stats_file(self):
+        #return self._nctype == "field_stats"
+
+    #@property
+    #def is_field_file(self):
+        #return self._nctype == "fields"
+
+    #@property
+    #def is_three_dimensional(self):
+        #return len(self.get_box_ncells()) == 3
+
+    def get_size(self):
+        return self._ncfile.dimensions['t'].size
+
+    def get_box_extent(self):
+        return self.get_global_attribute("extent")
+
+    def get_box_ncells(self):
+        return self.get_global_attribute("ncells")
+
+    def get_box_origin(self):
+        return self.get_global_attribute("origin")
+
+    def get_axis(self, name):
+        if not name in ['x', 'y', 'z']:
+            raise ValueError("No axis called '" + name + "'.")
+        axis = self.get_all(name)
+        if name == 'x' or name == 'y':
+            axis = np.append(axis, abs(axis[0]))
+        return axis
+
+    def get_all(self, name):
+        if self.is_parcel_file:
+            raise IOError("This function is not availble for parcel files.")
+        return super().get_all(name)
+
+    def get_data(self, name, step, indices=None, copy_periodic=True):
+
+        if not name in self._ncfile.variables.keys():
+            if name in self._derived_fields:
+                return self._get_derived_dataset(step, name, copy_periodic)
+
+        if not self.is_parcel_file:
+            super().get_dataset(step, name)
+
+        if self.is_parcel_file and name == 't':
+            # parcel files store the time as a global attribute
+            self._load_parcel_file(step)
+            return np.array(self._ncfile.variables[name]).squeeze()
+
+        if self.is_parcel_file:
+            self._load_parcel_file(step)
+            if indices is not None:
+                return np.array(self._ncfile.variables[name]).squeeze()[indices, ...]
+            else:
+                return np.array(self._ncfile.variables[name]).squeeze()
+        else:
+            if indices is not None:
+                return np.array(self._ncfile.variables[name][step, ...]).squeeze()[indices, ...]
+            else:
+                fdata = np.array(self._ncfile.variables[name][step, ...]).squeeze()
+
+                if copy_periodic:
+                    fdata = self._copy_periodic_layers(fdata)
+
+                if self.is_three_dimensional:
+                    # change ordering from (z, y, x) to (x, y, z)
+                    fdata = np.transpose(fdata, axes=[2, 1, 0])
+                else:
+                    fdata = np.transpose(fdata, axes=[1, 0])
+
+                return fdata
+
+    def _get_derived_dataset(self, step, name, copy_periodic):
+        if name == 'vorticity_magnitude':
+            x_vor = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
+            y_vor = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
+            z_vor = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
+            return np.sqrt(x_vor ** 2 + y_vor ** 2 + z_vor ** 2)
+        if name == 'helicity':
+            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
+            v = self.get_dataset(step=step, name='y_velocity', copy_periodic=copy_periodic)
+            w = self.get_dataset(step=step, name='z_velocity', copy_periodic=copy_periodic)
+            xi = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
+            eta = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
+            zeta = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
+            return u * xi + v * eta + w * zeta
+        if name == 'cross_helicity_magnitude':
+            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
+            nx, ny, nz = u.shape
+            uvec = np.zeros((nx, ny, nz, 3))
+            ovec = np.zeros((nx, ny, nz, 3))
+            uvec[:, :, :, 0] = u
+            uvec[:, :, :, 1] = self.get_dataset(step=step, name='y_velocity',
+                                                copy_periodic=copy_periodic)
+            uvec[:, :, :, 2] = self.get_dataset(step=step, name='z_velocity',
+                                                copy_periodic=copy_periodic)
+            ovec[:, :, :, 0] = self.get_dataset(step=step, name='x_vorticity',
+                                                copy_periodic=copy_periodic)
+            ovec[:, :, :, 1] = self.get_dataset(step=step, name='y_vorticity',
+                                                copy_periodic=copy_periodic)
+            ovec[:, :, :, 2] = self.get_dataset(step=step, name='z_vorticity',
+                                                copy_periodic=copy_periodic)
+            ch = np.cross(uvec, ovec)
+            x_ch = ch[:, :, :, 0]
+            y_ch = ch[:, :, :, 1]
+            z_ch = ch[:, :, :, 2]
+            return np.sqrt(x_ch ** 2 + y_ch  ** 2 + z_ch ** 2)
+
+        if name == 'kinetic_energy':
+            u = self.get_dataset(step=step, name='x_velocity', copy_periodic=copy_periodic)
+            v = self.get_dataset(step=step, name='y_velocity', copy_periodic=copy_periodic)
+            w = self.get_dataset(step=step, name='z_velocity', copy_periodic=copy_periodic)
+            return 0.5 * (u ** 2 + v ** 2 + w ** 2)
+        if name == 'enstrophy':
+            xi = self.get_dataset(step=step, name='x_vorticity', copy_periodic=copy_periodic)
+            eta = self.get_dataset(step=step, name='y_vorticity', copy_periodic=copy_periodic)
+            zeta = self.get_dataset(step=step, name='z_vorticity', copy_periodic=copy_periodic)
+            return 0.5 * (xi ** 2 + eta ** 2 + zeta ** 2)
+
+        if name == 'liquid_water_content':
+            h = self.get_dataset(step=step, name='humidity', copy_periodic=copy_periodic)
+            _, _, z = self.get_meshgrid()
+            if not copy_periodic:
+                nx, ny, nz = z.shape
+                z = z[0:nx-1, 0:ny-1, :]
+            len_condense = self.get_physical_quantity('scale_height')
+            q_scale = self.get_physical_quantity('saturation_specific_humidity_at_ground_level')
+            hl = (h / q_scale - np.exp(-z / len_condense))
+            hl = hl * (hl > 0.0)
+            return hl
+
+
+    #def get_dataset_attribute(self, name, attr):
+        #if not name in self._ncfile.variables.keys():
+            #raise IOError("Dataset '" + name + "' unknown.")
+
+        #if not attr in self._ncfile.variables[name].ncattrs():
+            #raise IOError("Dataset attribute '" + name + "' unknown.")
+
+        #return self._ncfile.variables[name].getncattr(attr)
+
+    #def get_dataset_min_max(self, name, indices=None):
+        #nsteps = self.get_num_steps()
+        #data = self.get_dataset(0, name, indices=indices)
+        #vmax = data.max()
+        #vmin = data.min()
+        #for step in range(1, nsteps):
+            #data = self.get_dataset(step, name, indices=indices)
+            #vmax = max(vmax, data.max())
+            #vmin = min(vmin, data.min())
+        #return vmin, vmax
+
+    #def get_global_attribute_names(self):
+        #return list(self._ncfile.ncattrs())
+
+    #def get_global_attribute(self, name):
+        #if not name in self._ncfile.ncattrs():
+            #raise IOError("Global attribute '" + name + "' unknown.")
+        #attr = self._ncfile.getncattr(name)
+        #if isinstance(attr, np.bytes_):
+            #attr = attr.decode()
+        #return attr
+
+    #def get_physical_quantity(self, name):
+        #if not name in self._ncfile['physical_quantities'].ncattrs():
+            #raise IOError("Physical quantity '" + name + "' unknown.")
+        #attr = self._ncfile['physical_quantities'].getncattr(name)
+        #if isinstance(attr, np.bytes_):
+            #attr = attr.decode()
+        #return attr
+
+    def _copy_periodic_layers(self, field):
+        if self.is_three_dimensional:
+            nz, ny, nx = field.shape
+            field_copy = np.empty((nz, ny+1, nx+1))
+            field_copy[:, 0:ny, 0:nx] = field.copy()
+            field_copy[:, ny, :] = field_copy[:, 0, :]
+            field_copy[:, :, nx] = field_copy[:, :, 0]
+        else:
+            nz, nx = field.shape
+            field_copy = np.empty((nz, nx+1))
+            field_copy[:, 0:nx] = field.copy()
+            field_copy[:, nx] = field_copy[:, 0]
+        return field_copy

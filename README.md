@@ -1,2 +1,3 @@
-# pytools
-Python plotting scripts for EPIC data
+# Python tools for reading and plotting EPIC data
+
+

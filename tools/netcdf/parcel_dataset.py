@@ -1,51 +1,35 @@
 import netCDF4 as nc
-from tools.nc_base_reader import nc_base_reader
+from .dataset import Dataset
 import re
 import numpy as np
 from matplotlib.patches import Ellipse, Circle
 from matplotlib.collections import EllipseCollection
-from tools.geometry import xy_plane, xz_plane, yz_plane
+#from tools.geometry import xy_plane, xz_plane, yz_plane
 import os
 
 
-class nc_reader(nc_base_reader):
-    def __init__(self):
-        # either a field or parcel file
-        self._nctype = None
+class ParcelDataset(Dataset):
 
-        self._is_compressible = False
+    def __init__(self, verbose: bool = False):
+        super().__init__(verbose)
 
-        self._derived_fields = [
-            'vorticity_magnitude',
-            'helicity',
-            'enstrophy',
-            'cross_helicity_magnitude',
-            'kinetic_energy',
-            'liquid_water_content'
-        ]
+    def open(self, filename: str):
+        super().open(filename)
 
-    def open(self, fname):
-        super().open(fname)
-
-        self._nctype = self.get_global_attribute("file_type")
-
-        # if we read in a parcel file we pre-evaluate the number of
-        # steps
-        if self.is_parcel_file:
-            self._loaded_step = -1
-            basename = os.path.basename(fname)
-            # 14 Feb 2022
-            # https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
-            p = re.compile(r"(.*)_(\d*)_parcels.nc")
-            result = p.search(basename)
-            self._basename = result.group(1)
-            self._dirname = os.path.dirname(fname)
-            if self._dirname == '':
-                self._dirname = '.'
-            self._n_parcel_files = 0
-            for ff in os.listdir(self._dirname):
-                if self._basename in ff and '_parcels.nc' in ff:
-                    self._n_parcel_files += 1
+        self._loaded_step = -1
+        basename = os.path.basename(filename)
+        # 14 Feb 2022
+        # https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
+        p = re.compile(r"(.*)_(\d*)_parcels.nc")
+        result = p.search(basename)
+        self._basename = result.group(1)
+        self._dirname = os.path.dirname(filename)
+        if self._dirname == '':
+            self._dirname = '.'
+        self._n_parcel_files = 0
+        for ff in os.listdir(self._dirname):
+            if self._basename in ff and '_parcels.nc' in ff:
+                self._n_parcel_files += 1
 
     @property
     def is_parcel_file(self):
