@@ -91,10 +91,24 @@ class Dataset(abc.ABC):
     @abc.abstractmethod
     def get_size(self) -> int:
         """
-        Get dataset size (i.e. number of saved time frames).
+        Get dataset size.
         This function must be overriden by derived classes.
         """
         pass
+
+    @property
+    def first_step(self) -> int:
+        """
+        Return first valid step number.
+        """
+        return 0
+
+    @property
+    def last_step(self) -> int:
+        """
+        Return last valid step number.
+        """
+        return self.get_size() - 1
 
     @property
     def file_type(self) -> FileType:
