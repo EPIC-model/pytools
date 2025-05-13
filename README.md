@@ -20,7 +20,7 @@ where other dataset classes are `ParcelDataset` and `StatDataset`.
 
 # How to access data in a dataset
 After loading a dataset, you can access data with
-```
+```python
 dset.get_data(name, step)
 ```
 where `name` is the data name, e.g. `z_vorticity`, and `step` is an integer. A list of
