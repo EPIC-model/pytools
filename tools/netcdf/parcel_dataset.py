@@ -66,6 +66,8 @@ class ParcelDataset(Dataset):
         """
         Get parcel attribute data.
         """
+        super().check_data(name, step)
+
         self._load_step(step)
 
         data = np.array(self._nc_handle.variables[name]).squeeze()

@@ -67,7 +67,6 @@ class Dataset(abc.ABC):
         self._nc_handle = None
         self._file_type = FileType.NONE
         self._filename = str()
-        self._variables = list()
         if self._verbose:
             print("Closed", self._filename)
 
@@ -139,7 +138,7 @@ class Dataset(abc.ABC):
         """
         This function checks if data is available.
         """
-        if not name in self._variables:
+        if not name in self.variables:
             raise IOError("Dataset '" + name + "' unknown.")
 
         if step < self.first_step or step > self.last_step:

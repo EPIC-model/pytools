@@ -67,32 +67,27 @@ class FieldDataset(Dataset):
     def get_data(self,
                  name: str,
                  step: int,
-                 indices: np.ndarray = None,
                  copy_periodic: bool = True) -> np.ndarray:
         """
         Return field data.
         """
+        self.check_data(name, step)
 
         if name in self._derived_fields:
             return self._get_derived_dataset(name, step, copy_periodic)
-
-        self.check_data(name, step)
-
-        if indices is not None:
-            return np.array(self._nc_handle.variables[name][step, ...]).squeeze()[indices, ...]
         else:
-            fdata = np.array(self._nc_handle.variables[name][step, ...]).squeeze()
+            data = np.array(self._nc_handle.variables[name][step, ...])
 
             if copy_periodic:
-                fdata = self._copy_periodic_layers(fdata)
+                data = self._copy_periodic_layers(data)
 
             if self.is_three_dimensional:
                 # change ordering from (z, y, x) to (x, y, z)
-                fdata = np.transpose(fdata, axes=[2, 1, 0])
+                data = np.transpose(data, axes=[2, 1, 0])
             else:
-                fdata = np.transpose(fdata, axes=[1, 0])
+                data = np.transpose(data, axes=[1, 0])
 
-            return fdata
+            return data
 
     def _get_derived_dataset(self, name: str, step: int, copy_periodic: bool) -> np.ndarray:
         if name == 'vorticity_magnitude':
