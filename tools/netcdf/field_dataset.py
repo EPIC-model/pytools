@@ -8,7 +8,7 @@ class FieldDataset(Dataset):
     def __init__(self, verbose: bool = False):
         super().__init__(verbose)
 
-        self._derived_fields = list()
+        self._derived_fields = {}
 
     def open(self, filename: str):
         super().open(filename)
@@ -17,20 +17,24 @@ class FieldDataset(Dataset):
             print("Field dataset is 3-dimensional:", self.is_three_dimensional)
 
         v = super().variables
-        if {'x_velocity', 'y_velocity', 'z_velocity'}.issubset(v):
-            self._derived_fields.append('kinetic_energy')
+        if {'x_velocity', 'y_velocity', 'z_velocity'}.issubset(v) and 'kinetic_energy' not in v:
+            self._derived_fields['kinetic_energy'] = self._kinetic_energy
         if {'x_vorticity', 'y_vorticity', 'z_vorticity'}.issubset(v):
-            self._derived_fields.append('vorticity_magnitude')
-            self._derived_fields.append('enstrophy')
+            if 'vorticity_magnitude' not in v:
+                self._derived_fields['vorticity_magnitude'] = self._vorticity_magnitude
+            if 'enstrophy' not in v:
+                self._derived_fields['enstrophy'] = self._enstrophy
         if {'x_velocity', 'x_vorticity',
             'y_velocity', 'y_vorticity',
             'z_velocity', 'z_vorticity'}.issubset(v):
-            self._derived_fields.append('helicity')
-            self._derived_fields.append('cross_helicity_magnitude')
+            if 'helicity' not in v:
+                self._derived_fields['helicity'] = self._helicity
+            if 'cross_helicity_magnitude' not in v:
+                self._derived_fields['cross_helicity_magnitude'] = self._cross_helicity_magnitude
 
     @property
     def variables(self) -> list:
-        return super().variables + self._derived_fields
+        return super().variables + list(self._derived_fields.keys())
 
     def get_size(self) -> int:
         """
@@ -73,8 +77,8 @@ class FieldDataset(Dataset):
         """
         self.check_data(name, step)
 
-        if name in self._derived_fields:
-            return self._get_derived_dataset(name, step, copy_periodic)
+        if name in self._derived_fields.keys():
+            return self._derived_fields[name](step, copy_periodic)
         else:
             data = np.array(self._nc_handle.variables[name][step, ...])
 
@@ -89,58 +93,6 @@ class FieldDataset(Dataset):
 
             return data
 
-    def _get_derived_dataset(self, name: str, step: int, copy_periodic: bool) -> np.ndarray:
-        if name == 'vorticity_magnitude':
-            x_vor = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
-            y_vor = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
-            z_vor = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
-            return np.sqrt(x_vor ** 2 + y_vor ** 2 + z_vor ** 2)
-        if name == 'helicity':
-            u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
-            v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
-            w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
-            xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
-            eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
-            zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
-            return u * xi + v * eta + w * zeta
-        if name == 'cross_helicity_magnitude':
-            u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
-            nx, ny, nz = u.shape
-            uvec = np.zeros((nx, ny, nz, 3))
-            ovec = np.zeros((nx, ny, nz, 3))
-            uvec[:, :, :, 0] = u
-            uvec[:, :, :, 1] = self.get_data(name='y_velocity',
-                                             step=step,
-                                             copy_periodic=copy_periodic)
-            uvec[:, :, :, 2] = self.get_data(name='z_velocity',
-                                             step=step,
-                                             copy_periodic=copy_periodic)
-            ovec[:, :, :, 0] = self.get_data(name='x_vorticity',
-                                             step=step,
-                                             copy_periodic=copy_periodic)
-            ovec[:, :, :, 1] = self.get_data(name='y_vorticity',
-                                             step=step,
-                                             copy_periodic=copy_periodic)
-            ovec[:, :, :, 2] = self.get_data(name='z_vorticity',
-                                             step=step,
-                                             copy_periodic=copy_periodic)
-            ch = np.cross(uvec, ovec)
-            x_ch = ch[:, :, :, 0]
-            y_ch = ch[:, :, :, 1]
-            z_ch = ch[:, :, :, 2]
-            return np.sqrt(x_ch ** 2 + y_ch  ** 2 + z_ch ** 2)
-
-        if name == 'kinetic_energy':
-            u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
-            v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
-            w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
-            return 0.5 * (u ** 2 + v ** 2 + w ** 2)
-        if name == 'enstrophy':
-            xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
-            eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
-            zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
-            return 0.5 * (xi ** 2 + eta ** 2 + zeta ** 2)
-
     def _copy_periodic_layers(self, field: np.ndarray) -> np.ndarray:
         if self.is_three_dimensional:
             nz, ny, nx = field.shape
@@ -154,3 +106,57 @@ class FieldDataset(Dataset):
             field_copy[:, 0:nx] = field.copy()
             field_copy[:, nx] = field_copy[:, 0]
         return field_copy
+
+    def _vorticity_magnitude(self, step: int, copy_periodic: bool) -> np.ndarray:
+        xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
+        eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
+        zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
+        return np.sqrt(xi ** 2 + eta ** 2 + zeta ** 2)
+
+    def _helicity(self, step: int, copy_periodic: bool) -> np.ndarray:
+        u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
+        v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
+        w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
+        xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
+        eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
+        zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
+        return u * xi + v * eta + w * zeta
+
+    def _cross_helicity_magnitude(self, step: int, copy_periodic: bool) -> np.ndarray:
+        u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
+        nx, ny, nz = u.shape
+        uvec = np.zeros((nx, ny, nz, 3))
+        ovec = np.zeros((nx, ny, nz, 3))
+        uvec[:, :, :, 0] = u
+        uvec[:, :, :, 1] = self.get_data(name='y_velocity',
+                                         step=step,
+                                         copy_periodic=copy_periodic)
+        uvec[:, :, :, 2] = self.get_data(name='z_velocity',
+                                         step=step,
+                                         copy_periodic=copy_periodic)
+        ovec[:, :, :, 0] = self.get_data(name='x_vorticity',
+                                         step=step,
+                                         copy_periodic=copy_periodic)
+        ovec[:, :, :, 1] = self.get_data(name='y_vorticity',
+                                         step=step,
+                                         copy_periodic=copy_periodic)
+        ovec[:, :, :, 2] = self.get_data(name='z_vorticity',
+                                         step=step,
+                                         copy_periodic=copy_periodic)
+        ch = np.cross(uvec, ovec)
+        x_ch = ch[:, :, :, 0]
+        y_ch = ch[:, :, :, 1]
+        z_ch = ch[:, :, :, 2]
+        return np.sqrt(x_ch ** 2 + y_ch  ** 2 + z_ch ** 2)
+
+    def _kinetic_energy(self, step: int, copy_periodic: bool) -> np.ndarray:
+        u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
+        v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
+        w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
+        return 0.5 * (u ** 2 + v ** 2 + w ** 2)
+
+    def _enstrophy(self, step: int, copy_periodic: bool) -> np.ndarray:
+        xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
+        eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
+        zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
+        return 0.5 * (xi ** 2 + eta ** 2 + zeta ** 2)
