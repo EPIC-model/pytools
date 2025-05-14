@@ -8,7 +8,14 @@ conda config --add channels conda-forge
 conda create --name pytools python=3.13.3 --file requirements.txt
 ```
 where `pytools` will be the name of the environment. It is recommended to use the latest Python version.
-You may therefore need to change `python=3.13.3`.
+You may therefore need to change `python=3.13.3`. The Python environment is activated with
+```bash
+conda activate pytools
+```
+and deactivate with
+```
+conda deactivate
+```
 
 ## How to load a dataset
 A dataset can simply be loaded with the function `load_dataset`
