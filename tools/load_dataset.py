@@ -1,9 +1,10 @@
 from . import netcdf as nc
 from .netcdf.field_dataset import FieldDataset
 from .netcdf.parcel_dataset import ParcelDataset
+from .netcdf.stat_dataset import StatDataset
 from .netcdf.dataset import check_file_type, FileType
 
-def load_dataset(filename: str, verbose: bool = True) -> FieldDataset | ParcelDataset:
+def load_dataset(filename: str, verbose: bool = True) -> FieldDataset | ParcelDataset | StatDataset:
     file_type = check_file_type(filename)
 
     match file_type:
