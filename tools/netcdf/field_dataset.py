@@ -8,20 +8,29 @@ class FieldDataset(Dataset):
     def __init__(self, verbose: bool = False):
         super().__init__(verbose)
 
-        self._derived_fields = [
-            'vorticity_magnitude',
-            'helicity',
-            'enstrophy',
-            'cross_helicity_magnitude',
-            'kinetic_energy',
-            'liquid_water_content'
-        ]
+        self._derived_fields = list()
 
     def open(self, filename: str):
         super().open(filename)
         self.is_three_dimensional = (self.extent.size == 3)
         if self._verbose:
             print("Field dataset is 3-dimensional:", self.is_three_dimensional)
+
+        v = super().variables
+        if {'x_velocity', 'y_velocity', 'z_velocity'}.issubset(v):
+            self._derived_fields.append('kinetic_energy')
+        if {'x_vorticity', 'y_vorticity', 'z_vorticity'}.issubset(v):
+            self._derived_fields.append('vorticity_magnitude')
+            self._derived_fields.append('enstrophy')
+        if {'x_velocity', 'x_vorticity',
+            'y_velocity', 'y_vorticity',
+            'z_velocity', 'z_vorticity'}.issubset(v):
+            self._derived_fields.append('helicity')
+            self._derived_fields.append('cross_helicity_magnitude')
+
+    @property
+    def variables(self) -> list:
+        return super().variables + self._derived_fields
 
     def get_size(self) -> int:
         """
@@ -64,14 +73,10 @@ class FieldDataset(Dataset):
         Return field data.
         """
 
-        if step < 0:
-            raise ValueError("Step number cannot be negative.")
+        if name in self._derived_fields:
+            return self._get_derived_dataset(name, step, copy_periodic)
 
-        if name not in self._nc_handle.variables.keys():
-            if name in self._derived_fields:
-                return self._get_derived_dataset(name, step, copy_periodic)
-
-        super().get_data(name, step)
+        self.check_data(name, step)
 
         if indices is not None:
             return np.array(self._nc_handle.variables[name][step, ...]).squeeze()[indices, ...]
@@ -140,18 +145,6 @@ class FieldDataset(Dataset):
             eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
             zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
             return 0.5 * (xi ** 2 + eta ** 2 + zeta ** 2)
-
-        if name == 'liquid_water_content':
-            h = self.get_data(name='humidity', step=step, copy_periodic=copy_periodic)
-            _, _, z = self.get_meshgrid()
-            if not copy_periodic:
-                nx, ny, nz = z.shape
-                z = z[0:nx-1, 0:ny-1, :]
-            len_condense = self.get_physical_quantity('scale_height')
-            q_scale = self.get_physical_quantity('saturation_specific_humidity_at_ground_level')
-            hl = (h / q_scale - np.exp(-z / len_condense))
-            hl = hl * (hl > 0.0)
-            return hl
 
     def _copy_periodic_layers(self, field: np.ndarray) -> np.ndarray:
         if self.is_three_dimensional:

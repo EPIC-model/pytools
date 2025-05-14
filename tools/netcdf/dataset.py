@@ -64,8 +64,19 @@ class Dataset(abc.ABC):
         if not self.is_open():
             return
         self._nc_handle.close()
+        self._nc_handle = None
+        self._file_type = FileType.NONE
+        self._filename = str()
+        self._variables = list()
         if self._verbose:
             print("Closed", self._filename)
+
+    @property
+    def variables(self) -> list:
+        """
+        Return a list of available variables in a dataset.
+        """
+        return list(self._nc_handle.variables.keys())
 
     @property
     def extent(self) -> np.ndarray:
@@ -122,54 +133,47 @@ class Dataset(abc.ABC):
         """
         This function must be overriden by derived classes.
         """
-        if not name in self._nc_handle.variables.keys():
+        pass
+
+    def check_data(self, name: str, step: int) -> None:
+        """
+        This function checks if data is available.
+        """
+        if not name in self._variables:
             raise IOError("Dataset '" + name + "' unknown.")
 
-        n_steps = self.get_size()
-        if step > n_steps - 1:
-            raise ValueError("Dataset has only steps 0 to " + str(n_steps - 1) + ".")
+        if step < self.first_step or step > self.last_step:
+            msg = "Dataset has only steps " + str(self.first_step) + " to " + str(self.last_step) + "."
+            raise ValueError(msg)
 
-    def _has_global_attributes(self):
-        return not self._nc_handle.ncattrs() == []
+    def info(self):
+        """
+        Print general information about dataset.
 
-    # 18 Feb 2022
-    # https://stackoverflow.com/questions/8450472/how-to-print-a-string-at-a-fixed-width
-    # 19 Feb 2022
-    # https://stackoverflow.com/questions/873327/pythons-most-efficient-way-to-choose-longest-string-in-list
-    def __str__(self):
+        18 Feb 2022
+        https://stackoverflow.com/questions/8450472/how-to-print-a-string-at-a-fixed-width
+        19 Feb 2022
+        https://stackoverflow.com/questions/873327/pythons-most-efficient-way-to-choose-longest-string-in-list
         """
-        Print information about the dataset.
-        """
-        if self._has_global_attributes():
-            print("=" * 80)
-            # print global attributes
+        if self._nc_handle.ncattrs():
             print("GLOBAL ATTRIBUTES:")
+            print("-" * 18)
             l = len(max(self._nc_handle.ncattrs(), key=len))
             fmt = '{0: <' + str(l) + '}'
             for key in self._nc_handle.ncattrs():
                 print(fmt.format(key), "\t", self._nc_handle.getncattr(key))
-            print("-" * 80)
 
+    def __str__(self):
+        """
+        Print information about the dataset.
+        """
         print("DIMENSIONS:")
-
+        print("-" * 11)
         for dim in self._nc_handle.dimensions:
             print("    ", dim, "=", self._nc_handle.dimensions[dim].size)
 
-        print("-" * 80)
-
         print("VARIABLES:")
-        # get first variable name
-        name = list(self._nc_handle.variables.keys())[0]
-
-        if not self._nc_handle.variables[name].ncattrs() == []:
-            # get length of longest attribute string
-            l = len(max(self._nc_handle.variables[name].ncattrs(), key=len))
-            fmt = '{0: <' + str(l) + '}'
-
-        # print variables and their attributes
-        for var in self._nc_handle.variables:
+        print("-" * 10)
+        for var in self.variables:
             print("    ", var)
-            for attr in self._nc_handle.variables[var].ncattrs():
-                print("\t", fmt.format(attr), "\t", self._nc_handle.variables[var].getncattr(attr))
-        print("=" * 80)
         return ""
