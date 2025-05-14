@@ -1,6 +1,6 @@
 # Python tools for reading and plotting EPIC data
 
-# How to load a dataset
+## How to load a dataset
 A dataset can simply be loaded with the function `load_dataset`
 ```python
 import tools
@@ -18,7 +18,7 @@ dset.close()
 ```
 where other dataset classes are `ParcelDataset` and `StatDataset`.
 
-# How to access data in a dataset
+## How to access data in a dataset
 After loading a dataset, you can access data with
 ```python
 dset.get_data(name, step)
@@ -29,7 +29,7 @@ further options like `copy_periodic` for field datasets. For further info on dat
 check the corresponding classes (e.g. `help(dset)`).
 
 
-# How to write an EPIC netCDF input file
+## How to write an EPIC netCDF input file
 You can either write a field (`FieldWriter`) or parcel (`ParcelWriter`) netCDF file. An example
 template is given below.
 
