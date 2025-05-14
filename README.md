@@ -12,7 +12,7 @@ You may therefore need to change `python=3.13.3`. The Python environment is acti
 ```bash
 conda activate pytools
 ```
-and deactivate with
+and deactivated with
 ```
 conda deactivate
 ```
