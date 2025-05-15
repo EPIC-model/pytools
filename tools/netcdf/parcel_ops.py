@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib.patches import Ellipse, Circle
 from matplotlib.collections import EllipseCollection
-from tools.plotting.geometry import Plane
+from tools.geometry import Plane
 from .parcel_dataset import ParcelDataset
 
 #def get_aspect_ratio(self, step, indices=None):
