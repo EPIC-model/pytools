@@ -62,15 +62,15 @@ class ParcelDataset(Dataset):
         """
         return self._last_step
 
-    def get_data(self, name: str, step: int, indices: np.ndarray = None) -> np.ndarray:
+    def get_data(self, varname: str, step: int, indices: np.ndarray = None) -> np.ndarray:
         """
         Get parcel attribute data.
         """
-        super().check_data(name, step)
+        super().check_data(varname, step)
 
         self._load_step(step)
 
-        data = np.array(self._nc_handle.variables[name]).squeeze()
+        data = np.array(self._nc_handle.variables[varname]).squeeze()
 
         if indices is not None:
             return data[indices, ...]

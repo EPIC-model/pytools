@@ -16,15 +16,15 @@ class StatDataset(Dataset):
         return self._nc_handle.dimensions['t'].size
 
     def get_data(self,
-                 name: str,
+                 varname: str,
                  step: int) -> np.ndarray | float:
         """
         Return statistics data.
         If step = -1, this function returns all the data.
         """
-        super().check_data(name, step=max(0, step))
+        super().check_data(varname, step=max(0, step))
 
-        data = np.array(self._nc_handle.variables[name])
+        data = np.array(self._nc_handle.variables[varname])
         if step > -1:
             data = data[step]
 

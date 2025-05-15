@@ -42,14 +42,14 @@ class FieldDataset(Dataset):
         """
         return self._nc_handle.dimensions['t'].size
 
-    def get_axis(self, name: str, copy_periodic: set[str]) -> np.ndarray:
+    def get_axis(self, varname: str, copy_periodic: set[str] = {'x', 'y'}) -> np.ndarray:
         """
         Get grid point values of the x-axis, y-axis or z-axis.
         """
-        if name not in ['x', 'y', 'z']:
-            raise ValueError("No axis called '" + name + "'.")
-        axis = np.array(self._nc_handle.variables[name])
-        if name in copy_periodic and name in ['x', 'y']:
+        if varname not in ['x', 'y', 'z', 't']:
+            raise ValueError("No axis called '" + varname + "'.")
+        axis = np.array(self._nc_handle.variables[varname])
+        if varname in copy_periodic and varname in ['x', 'y']:
             axis = np.append(axis, abs(axis[0]))
         return axis
 
@@ -69,18 +69,18 @@ class FieldDataset(Dataset):
         return xg, yg, zg
 
     def get_data(self,
-                 name: str,
+                 varname: str,
                  step: int,
-                 copy_periodic: set[str]) -> np.ndarray:
+                 copy_periodic: set[str] = {'x', 'y'}) -> np.ndarray:
         """
         Return field data.
         """
-        self.check_data(name, step)
+        self.check_data(varname, step)
 
-        if name in self._derived_fields.keys():
-            return self._derived_fields[name](step, copy_periodic)
+        if varname in self._derived_fields.keys():
+            return self._derived_fields[varname](step, copy_periodic)
         else:
-            data = np.array(self._nc_handle.variables[name][step, ...])
+            data = np.array(self._nc_handle.variables[varname][step, ...])
 
             if copy_periodic:
                 data = self._copy_periodic_layers(copy_periodic, data)

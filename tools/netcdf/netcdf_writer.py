@@ -32,7 +32,7 @@ class NetcdfWriter(abc.ABC):
         self._ncfile.close()
 
     @abc.abstractmethod
-    def add_dataset(self, name: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
+    def add_dataset(self, varname: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
         """
         Add a single dataset to the file.
         """
@@ -96,16 +96,6 @@ class NetcdfWriter(abc.ABC):
         self._ncfile.setncattr(name="ncells", value=ncells)
 
     def _add_dataset_properties(self, var: nc._netCDF4.Variable, **kwargs) -> None:
-        """
-        Add a field dataset.
-
-        Parameters
-        ----------
-        name:
-            The field name.
-        values:
-            The field data.
-        """
         unit = kwargs.pop('unit', '')
         if unit:
             var.units = unit
@@ -154,7 +144,7 @@ class FieldWriter(NetcdfWriter):
                                               dimensions=(axis))
             var[:] = values[:]
 
-    def add_dataset(self, name: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
+    def add_dataset(self, varname: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
 
         values = np.asarray(values)
 
@@ -179,25 +169,25 @@ class FieldWriter(NetcdfWriter):
 
 
         if self._ndims == 2:
-            if not name in self._ncfile.variables.keys():
-                var = self._ncfile.createVariable(varname=name,
+            if not varname in self._ncfile.variables.keys():
+                var = self._ncfile.createVariable(varname=varname,
                                                   datatype=dtype,
                                                   dimensions=('t',
                                                               self._dim_names_in_2d[1],
                                                               self._dim_names_in_2d[0]))
             else:
-                var = self._ncfile.variables[name]
+                var = self._ncfile.variables[varname]
             var[ti, :, :] = values[:, :]
         else:
-            if not name in self._ncfile.variables.keys():
-                var = self._ncfile.createVariable(varname=name,
+            if not varname in self._ncfile.variables.keys():
+                var = self._ncfile.createVariable(varname=varname,
                                                   datatype=dtype,
                                                   dimensions=('t',
                                                               self._dim_names_in_3d[2],
                                                               self._dim_names_in_3d[1],
                                                               self._dim_names_in_3d[0]))
             else:
-                var = self._ncfile.variables[name]
+                var = self._ncfile.variables[varname]
             var[ti, :, :, :] = values[:, :, :]
 
         self._add_dataset_properties(var)
@@ -213,7 +203,7 @@ class ParcelWriter(NetcdfWriter):
         self._nparcels = 0
         self.time = 0.0
 
-    def add_dataset(self, name: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
+    def add_dataset(self, varname: str, values: np.ndarray, dtype: str = 'f8', **kwargs) -> None:
         shape = np.shape(values)
         if len(shape) > 1:
             RuntimeError("Shape must be of 1-dimensional.")
@@ -229,7 +219,7 @@ class ParcelWriter(NetcdfWriter):
                                                dimensions=('t'))
             time[0] = self.time
 
-        var = self._ncfile.createVariable(varname=name,
+        var = self._ncfile.createVariable(varname=varname,
                                           datatype=dtype,
                                           dimensions=('t', 'n_parcels'))
         var[0, :] = values[:]

@@ -84,27 +84,39 @@ class Dataset(abc.ABC):
         """
         Get domain extent.
         """
-        return self._nc_handle.getncattr("extent")
+        try:
+            res = self._nc_handle.getncattr("extent")
+        except:
+            res = self._nc_handle['parameters'].getncattr('extent')
+        return res
 
     @property
     def ncells(self) -> np.ndarray:
         """
         Get number of grid cells.
         """
-        return  self._nc_handle.getncattr("ncells")
+        try:
+            res = self._nc_handle.getncattr("ncells")
+        except:
+            res = self._nc_handle['parameters'].getncattr('ncells')
+        return res
 
     @property
     def origin(self) -> np.ndarray:
         """
         Get domain origin (lower left corner).
         """
-        return  self._nc_handle.getncattr("origin")
+        try:
+            res = self._nc_handle.getncattr("origin")
+        except:
+            res = self._nc_handle['parameters'].getncattr('origin')
+        return res
 
-    def get_label(self, name) -> str:
+    def get_label(self, varname) -> str:
         """
         Return variable label for plotting.
         """
-        return  self._nc_handle.variables[name].long_name
+        return  self._nc_handle.variables[varname].long_name
 
     @abc.abstractmethod
     def get_size(self) -> int:
@@ -136,18 +148,18 @@ class Dataset(abc.ABC):
         return self._file_type
 
     @abc.abstractmethod
-    def get_data(self, name: str, step: int, **kwargs) -> np.ndarray:
+    def get_data(self, varname: str, step: int, **kwargs) -> np.ndarray:
         """
         This function must be overriden by derived classes.
         """
         pass
 
-    def check_data(self, name: str, step: int) -> None:
+    def check_data(self, varname: str, step: int) -> None:
         """
         This function checks if data is available.
         """
-        if not name in self.variables:
-            raise IOError("Dataset '" + name + "' unknown.")
+        if not varname in self.variables:
+            raise IOError("Dataset '" + varname + "' unknown.")
 
         if step < self.first_step or step > self.last_step:
             msg = "Dataset has only steps " + str(self.first_step) + " to " + str(self.last_step) + "."

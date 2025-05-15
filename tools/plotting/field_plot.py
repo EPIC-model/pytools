@@ -38,23 +38,24 @@ def profile_plot(ax: mpl.axes._axes.Axes,
         copy_periodic = {}
         _axes = (0, 1)
 
-    _data = dset.get_data(name=field, step=step, copy_periodic=copy_periodic)
-    _axis = dset.get_axis(name=axis, copy_periodic=copy_periodic)
+    _data = dset.get_data(varname=field, step=step, copy_periodic=copy_periodic)
+    _axis = dset.get_axis(varname=axis, copy_periodic=copy_periodic)
 
-    xlab = ''
+    lab = ''
     if measure == 'mean':
         _profile = np.mean(a=_data, axis=_axes)
-        xlab = 'mean of '
+        lab = 'mean of '
     elif measure == 'rms':
+        lab = 'rms of '
         _profile = np.sqrt(np.mean(a=_data**2, axis=_axes))
     else:
         raise ValueError("Only 'mean' or 'rms' allowed.")
 
     if axis == 'z':
         ax.plot(_profile, _axis, **kwargs)
-        ax.set_xlabel(axis)
-        ax.set_ylabel(xlab + dset.get_label(field))
+        ax.set_xlabel(lab + dset.get_label(field))
+        ax.set_ylabel(axis)
     else:
         ax.plot(_axis, _profile, **kwargs)
-        ax.set_xlabel(xlab + dset.get_label(field))
-        ax.set_ylabel(axis)
+        ax.set_xlabel(axis)
+        ax.set_ylabel(lab + dset.get_label(field))
