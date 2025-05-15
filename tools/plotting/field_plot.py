@@ -9,6 +9,15 @@ def profile_plot(ax: mpl.axes._axes.Axes,
                  field: str,
                  measure: str = 'mean',
                  **kwargs):
+    """
+    Generate a profile plot.
+
+    Parameters
+    ----------
+    axis: 'x', 'y' or 'z'
+    field: name of field data
+    measure: 'mean' or 'rms'
+    """
 
     if not isinstance(dset, FieldDataset):
         raise TypeError("Dataset must be of type 'FieldDataset'")
@@ -34,14 +43,18 @@ def profile_plot(ax: mpl.axes._axes.Axes,
 
     xlab = ''
     if measure == 'mean':
-        _mean = np.mean(a=_data, axis=_axes)
+        _profile = np.mean(a=_data, axis=_axes)
         xlab = 'mean of '
+    elif measure == 'rms':
+        _profile = np.sqrt(np.mean(a=_data**2, axis=_axes))
+    else:
+        raise ValueError("Only 'mean' or 'rms' allowed.")
 
     if axis == 'z':
-        ax.plot(_mean, _axis, **kwargs)
+        ax.plot(_profile, _axis, **kwargs)
         ax.set_xlabel(axis)
         ax.set_ylabel(xlab + dset.get_label(field))
     else:
-        ax.plot(_axis, _mean, **kwargs)
+        ax.plot(_axis, _profile, **kwargs)
         ax.set_xlabel(xlab + dset.get_label(field))
         ax.set_ylabel(axis)

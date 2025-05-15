@@ -2,6 +2,12 @@ from tools.netcdf.stat_dataset import StatDataset
 import matplotlib as mpl
 
 def line_plot(ax: mpl.axes._axes.Axes, dset: StatDataset, x: str, y: str, **kwargs):
+    """
+    Generate a line plot.
+
+    x: name of variable on x-axis
+    y: name of variable on y-axis
+    """
     if not isinstance(dset, StatDataset):
         raise TypeError("Dataset must be of type 'StatDataset'")
 
