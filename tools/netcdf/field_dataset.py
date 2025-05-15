@@ -42,24 +42,24 @@ class FieldDataset(Dataset):
         """
         return self._nc_handle.dimensions['t'].size
 
-    def get_axis(self, name: str, copy_periodic: bool = True) -> np.ndarray:
+    def get_axis(self, name: str, copy_periodic: set[str]) -> np.ndarray:
         """
         Get grid point values of the x-axis, y-axis or z-axis.
         """
         if name not in ['x', 'y', 'z']:
             raise ValueError("No axis called '" + name + "'.")
         axis = np.array(self._nc_handle.variables[name])
-        if copy_periodic and name in ['x', 'y']:
+        if name in copy_periodic and name in ['x', 'y']:
             axis = np.append(axis, abs(axis[0]))
         return axis
 
-    def get_meshgrid(self, copy_periodic: bool = True):
+    def get_meshgrid(self, copy_periodic: set[str]):
         """
         Return grid points in a mesh.
         """
         x = self.get_axis('x', copy_periodic)
         y = self.get_axis('y', copy_periodic)
-        z = self.get_axis('z', copy_periodic)
+        z = self.get_axis('z')
 
         xg, yg, zg = np.meshgrid(x, y, z, indexing='ij')
         assert np.all(xg[:, 0, 0] == x)
@@ -71,7 +71,7 @@ class FieldDataset(Dataset):
     def get_data(self,
                  name: str,
                  step: int,
-                 copy_periodic: bool = True) -> np.ndarray:
+                 copy_periodic: set[str]) -> np.ndarray:
         """
         Return field data.
         """
@@ -83,7 +83,7 @@ class FieldDataset(Dataset):
             data = np.array(self._nc_handle.variables[name][step, ...])
 
             if copy_periodic:
-                data = self._copy_periodic_layers(data)
+                data = self._copy_periodic_layers(copy_periodic, data)
 
             if self.is_three_dimensional:
                 # change ordering from (z, y, x) to (x, y, z)
@@ -93,12 +93,11 @@ class FieldDataset(Dataset):
 
             return data
 
-    def _copy_periodic_layers(self, field: np.ndarray) -> np.ndarray:
+    def _copy_x_periodic(self, field: np.ndarray) -> np.ndarray:
         if self.is_three_dimensional:
             nz, ny, nx = field.shape
-            field_copy = np.empty((nz, ny+1, nx+1))
-            field_copy[:, 0:ny, 0:nx] = field.copy()
-            field_copy[:, ny, :] = field_copy[:, 0, :]
+            field_copy = np.empty((nz, ny, nx+1))
+            field_copy[:, :, 0:nx] = field.copy()
             field_copy[:, :, nx] = field_copy[:, :, 0]
         else:
             nz, nx = field.shape
@@ -107,13 +106,41 @@ class FieldDataset(Dataset):
             field_copy[:, nx] = field_copy[:, 0]
         return field_copy
 
-    def _vorticity_magnitude(self, step: int, copy_periodic: bool) -> np.ndarray:
+    def _copy_y_periodic(self, field: np.ndarray) -> np.ndarray:
+        if self.is_three_dimensional:
+            nz, ny, nx = field.shape
+            field_copy = np.empty((nz, ny+1, nx))
+            field_copy[:, 0:ny, :] = field.copy()
+            field_copy[:, ny, :] = field_copy[:, 0, :]
+        return field_copy
+
+    def _copy_periodic_layers(self, copy_periodic: set[str], field: np.ndarray) -> np.ndarray:
+        if copy_periodic == {'x'}:
+            return self._copy_x_periodic(field)
+        elif copy_periodic == {'y'}:
+            return self._copy_y_periodic(field)
+        elif copy_periodic == {'x', 'y'}:
+            if self.is_three_dimensional:
+                nz, ny, nx = field.shape
+                field_copy = np.empty((nz, ny, nx))
+                field_copy[:, 0:ny, 0:nx] = field.copy()
+                field_copy[:, ny, :] = field_copy[:, 0, :]
+                field_copy[:, :, nx] = field_copy[:, :, 0]
+            else:
+                nz, nx = field.shape
+                field_copy = np.empty((nz, nx+1))
+                field_copy[:, 0:nx] = field.copy()
+                field_copy[:, nx] = field_copy[:, 0]
+            return field_copy
+        return field
+
+    def _vorticity_magnitude(self, step: int, copy_periodic: set[str]) -> np.ndarray:
         xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
         eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
         zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
         return np.sqrt(xi ** 2 + eta ** 2 + zeta ** 2)
 
-    def _helicity(self, step: int, copy_periodic: bool) -> np.ndarray:
+    def _helicity(self, step: int, copy_periodic: set[str]) -> np.ndarray:
         u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
         v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
         w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
@@ -122,7 +149,7 @@ class FieldDataset(Dataset):
         zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)
         return u * xi + v * eta + w * zeta
 
-    def _cross_helicity_magnitude(self, step: int, copy_periodic: bool) -> np.ndarray:
+    def _cross_helicity_magnitude(self, step: int, copy_periodic: set[str]) -> np.ndarray:
         u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
         nx, ny, nz = u.shape
         uvec = np.zeros((nx, ny, nz, 3))
@@ -149,13 +176,13 @@ class FieldDataset(Dataset):
         z_ch = ch[:, :, :, 2]
         return np.sqrt(x_ch ** 2 + y_ch  ** 2 + z_ch ** 2)
 
-    def _kinetic_energy(self, step: int, copy_periodic: bool) -> np.ndarray:
+    def _kinetic_energy(self, step: int, copy_periodic: set[str]) -> np.ndarray:
         u = self.get_data(name='x_velocity', step=step, copy_periodic=copy_periodic)
         v = self.get_data(name='y_velocity', step=step, copy_periodic=copy_periodic)
         w = self.get_data(name='z_velocity', step=step, copy_periodic=copy_periodic)
         return 0.5 * (u ** 2 + v ** 2 + w ** 2)
 
-    def _enstrophy(self, step: int, copy_periodic: bool) -> np.ndarray:
+    def _enstrophy(self, step: int, copy_periodic: set[str]) -> np.ndarray:
         xi = self.get_data(name='x_vorticity', step=step, copy_periodic=copy_periodic)
         eta = self.get_data(name='y_vorticity', step=step, copy_periodic=copy_periodic)
         zeta = self.get_data(name='z_vorticity', step=step, copy_periodic=copy_periodic)

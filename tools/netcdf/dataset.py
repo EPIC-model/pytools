@@ -55,6 +55,8 @@ class Dataset(abc.ABC):
         """
         Check if dataset is open.
         """
+        if self._nc_handle is None:
+            return False
         return self._nc_handle.isopen()
 
     def close(self) -> None:
@@ -97,6 +99,12 @@ class Dataset(abc.ABC):
         Get domain origin (lower left corner).
         """
         return  self._nc_handle.getncattr("origin")
+
+    def get_label(self, name) -> str:
+        """
+        Return variable label for plotting.
+        """
+        return  self._nc_handle.variables[name].long_name
 
     @abc.abstractmethod
     def get_size(self) -> int:
