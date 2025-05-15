@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib.patches import Ellipse, Circle
 from matplotlib.collections import EllipseCollection
-from .geometry import xy_plane, xz_plane, yz_plane
+from tools.plotting.geometry import Plane
 from .parcel_dataset import ParcelDataset
 
 #def get_aspect_ratio(self, step, indices=None):
@@ -58,7 +58,7 @@ def _get_angle(b11: np.ndarray, b12: np.ndarray, b22: np.ndarray, a2: np.ndarray
 
 def _calculate_intersection_ellipses(dset: ParcelDataset,
                                      step: int,
-                                     plane: str,
+                                     plane: Plane,
                                      indices : np.ndarray):
     """
     Calculates the ellipses from all ellipsoids intersecting
@@ -88,8 +88,8 @@ def _calculate_intersection_ellipses(dset: ParcelDataset,
     # plane with the z-axis (note: R^-1 = R^T). We use Rodrigues' rotation
     # formula:
     z = np.array([0.0, 0.0, 1.0])
-    w = np.cross(pl.normal, z)
-    c = np.dot(pl.normal, z)
+    w = np.cross(plane.normal, z)
+    c = np.dot(plane.normal, z)
     s = np.sqrt(1.0 - c**2)
     W = np.array([[0.0, -w[2], w[1]],
                     [w[2], 0.0, -w[0]],
@@ -100,7 +100,7 @@ def _calculate_intersection_ellipses(dset: ParcelDataset,
     z = None
 
     # new location of plane
-    p_aligned = np.matmul(R, pl.point)
+    p_aligned = np.matmul(R, plane.point)
     zplane = p_aligned[2]
 
     j = 0
@@ -152,24 +152,24 @@ def _calculate_intersection_ellipses(dset: ParcelDataset,
         B2x2[1, 1] = B3x3[1, 1]
 
 
-        if plane == 'xy':
+        if plane.orientation == 'xy':
             centres[j, 0] = xo[0]
             centres[j, 1] = xo[1]
-        elif plane == 'xz':
+        elif plane.orientation == 'xz':
             centres[j, 0] = xo[0]
             centres[j, 1] = xo[2]
 
             B2x2[0, 0] = B3x3[0, 0]
             B2x2[0, 1] = B3x3[0, 2]
             B2x2[1, 1] = B3x3[2, 2]
-        elif plane == 'yz':
+        elif plane.orientation == 'yz':
             centres[j, 0] = xo[1]
             centres[j, 1] = xo[2]
             B2x2[0, 0] = B3x3[1, 1]
             B2x2[0, 1] = B3x3[1, 2]
             B2x2[1, 1] = B3x3[2, 2]
         else:
-            raise RuntimeError("Plane '" + plane + "' not available.")
+            raise RuntimeError("The intersection method does not support arbitrary planes yet.")
 
         b11e[j] = B2x2[0, 0]
         b12e[j] = B2x2[0, 1]
@@ -181,46 +181,46 @@ def _calculate_intersection_ellipses(dset: ParcelDataset,
 
 def _calculate_projection_ellipses(dset: ParcelDataset,
                                    step: int,
-                                   plane: str,
+                                   plane: Plane,
                                    indices : np.ndarray):
     """
     Calculates 2D projections of the ellipsoids onto either
     xy-, xz- or yz-plane.
     """
-    b11 = self.get_data(name='B11',    step=step, indices=indices)
-    b12 = self.get_data(name='B12',    step=step, indices=indices)
-    b13 = self.get_data(name='B13',    step=step, indices=indices)
-    b22 = self.get_data(name='B22',    step=step, indices=indices)
-    b23 = self.get_data(name='B23',    step=step, indices=indices)
-    v   = self.get_data(name='volume', step=step, indices=indices)
-    b33 = self._get_b33(b11, b12, b13, b22, b23, v)
+    b11 = dset.get_data(name='B11',    step=step, indices=indices)
+    b12 = dset.get_data(name='B12',    step=step, indices=indices)
+    b13 = dset.get_data(name='B13',    step=step, indices=indices)
+    b22 = dset.get_data(name='B22',    step=step, indices=indices)
+    b23 = dset.get_data(name='B23',    step=step, indices=indices)
+    v   = dset.get_data(name='volume', step=step, indices=indices)
+    b33 = _get_b33(b11, b12, b13, b22, b23, v)
 
     n = len(indices)
     centres = np.empty((n, 2))
 
-    if plane == 'xy':
+    if plane.orientation == 'xy':
         b33 = 1.0 / b33
         b11_proj = b11 - b13 ** 2 * b33
         b12_proj = b12 - b13 * b23 * b33
         b22_proj = b22 - b23 ** 2 * b33
-        centres[:, 0] = self.get_data(name='x_position', step=step, indices=indices)
-        centres[:, 1] = self.get_data(name='y_position', step=step, indices=indices)
-    elif plane == 'xz':
+        centres[:, 0] = dset.get_data(name='x_position', step=step, indices=indices)
+        centres[:, 1] = dset.get_data(name='y_position', step=step, indices=indices)
+    elif plane.orientation == 'xz':
         b22 = 1.0 / b22
         b11_proj = b11 - b12 ** 2 * b22
         b12_proj = b13 - b12 * b23 * b22
         b22_proj = b33 - b23 ** 2 * b22
-        centres[:, 0] = self.get_data(name='x_position', step=step, indices=indices)
-        centres[:, 1] = self.get_data(name='z_position', step=step, indices=indices)
-    elif plane == 'yz':
+        centres[:, 0] = dset.get_data(name='x_position', step=step, indices=indices)
+        centres[:, 1] = dset.get_data(name='z_position', step=step, indices=indices)
+    elif plane.orientation == 'yz':
         b11 = 1.0 / b11
         b11_proj = b22 - b12 ** 2 * b11
         b12_proj = b23 - b12 * b13 * b11
         b22_proj = b33 - b13 ** 2 * b11
-        centres[:, 0] = self.get_data(name='y_position', step=step, indices=indices)
-        centres[:, 1] = self.get_data(name='z_position', step=step, indices=indices)
+        centres[:, 0] = dset.get_data(name='y_position', step=step, indices=indices)
+        centres[:, 1] = dset.get_data(name='z_position', step=step, indices=indices)
     else:
-        raise RuntimeError("Plane '" + plane + "' not available.")
+        raise RuntimeError("The projection method does not support arbitrary planes yet.")
 
     v_proj = np.pi * np.sqrt(b22_proj * b11_proj - b12_proj ** 2)
     return centres, b11_proj, b12_proj, v_proj, indices
@@ -228,17 +228,30 @@ def _calculate_projection_ellipses(dset: ParcelDataset,
 
 def get_ellipses(dset: ParcelDataset,
                  step: int,
-                 **kwargs) -> EllipseCollection:
+                 method: str = 'intersection',
+                 plane: Plane = None) -> EllipseCollection:
+    """
+    Generate ellipses for plotting. Accepts 2D and 3D parcel datasets.
+    In case of a 3D parcel dataset, there is the option to get the projected or
+    intersected ellipses with a plane.
+
+    Parameters for 3D
+    -----------------
+    method: 'intersection' or 'projection'
+    """
 
     if not isinstance(dset, ParcelDataset):
         raise TypeError("Dataset 'dset' must be of type ParcelDataset")
 
     if dset.is_three_dimensional:
-        method = kwargs.get('method', 'intersection')
-        plane = kwargs.get('plane', 'xy')
+        if plane is None:
+            raise RuntimeError("A plane instance must be provided.")
 
-        if plane not in ['xy', 'xz', 'yz']:
-            raise ValueError("Specified plane '", plane, "' not available.")
+        if method not in ['intersection', 'projection']:
+            raise RuntimeError("Method must be 'intersection' or 'projection'")
+
+        if not plane.orientation in ('xy', 'xz', 'yz'):
+            raise RuntimeError("No arbitrary planes supported yet.")
 
         dx = dset.extent / dset.ncells
 
@@ -246,19 +259,11 @@ def get_ellipses(dset: ParcelDataset,
         dim = {0: 'x', 1: 'y', 2: 'z'}
 
         # calculate the position of the plane
-        j = var[plane]
-        p = dset.origin[j] + dx[j] * loc
-
-        if plane == 'xy':
-            pl = xy_plane(z=p)
-        elif plane ==  'xz':
-            pl = xz_plane(y=p)
-        else:
-            pl = yz_plane(x=p)
+        j = var[plane.orientation]
 
         # lower and upper position bounds
-        lo = dset.origin[j] + dx[j] * (loc - 1)
-        hi = dset.origin[j] + dx[j] * (loc + 1)
+        lo = plane.height - dx[j]
+        hi = plane.height + dx[j]
 
         # get indices of parcels satisfying lo <= pos <= hi
         pos = dset.get_data(name=dim[j] + '_position', step=step)
@@ -273,15 +278,14 @@ def get_ellipses(dset: ParcelDataset,
         _b22 = _get_b22(_b11, _b12, _v)
 
     else:
-        _indices = kwargs.get('indices', None)
-
-        _x = dset.get_data("x_position", step=step, indices=_indices)
-        _y = dset.get_data("z_position", step=step, indices=_indices)
-        _v = dset.get_data("volume", step=step, indices=_indices)
-        _b11 = dset.get_data("B11", step=step, indices=_indices)
-        _b12 = dset.get_data("B12", step=step, indices=_indices)
+        _x = dset.get_data("x_position", step=step)
+        _y = dset.get_data("z_position", step=step)
+        _v = dset.get_data("volume", step=step)
+        _b11 = dset.get_data("B11", step=step)
+        _b12 = dset.get_data("B12", step=step)
         _b22 = _get_b22(_b11, _b12, _v)
         _centres = np.column_stack((_x, _y))
+        _indices = np.arange(0, _x.size)
 
     a2 = _get_eigenvalue(_b11, _b12, _b22)
     b2 = (_v / np.pi) ** 2 / a2
