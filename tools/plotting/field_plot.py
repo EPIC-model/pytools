@@ -90,7 +90,8 @@ def slice_plot(ax: mpl.axes._axes.Axes,
     if not dset.is_open():
         raise RuntimeError("Dataset is closed.")
 
-    _method = kwargs.get('interpolation', 'linear')
+    _method = kwargs.pop('interpolation', 'linear')
+    _colorbar = kwargs.pop('colorbar', False)
 
     _copy_periodic = {'x', 'y'}
 
@@ -127,9 +128,12 @@ def slice_plot(ax: mpl.axes._axes.Axes,
 
     _values = interp(pts).reshape(_pg.shape)
 
-    ax.pcolormesh(_pg, _qg, _values, shading='gouraud')
+    pc = ax.pcolormesh(_pg, _qg, _values, shading='gouraud', **kwargs)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    if _colorbar:
+        _cbar = ax.cax.colorbar(pc)
+        _cbar = _cbar.set_label(dset.get_label(field))
 
     #xmin = _pg.min()
     #xmax = _qg.max()
