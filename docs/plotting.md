@@ -5,7 +5,7 @@ You can create slice plots from gridded data with
 from tools.plotting import slice_plot
 ```
 
-### Example of ImageGrid
+#### Example
 ```python
 import tools
 from tools.plotting import create_image_grid
