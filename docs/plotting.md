@@ -1,3 +1,31 @@
+## Profile plot
+Profile plots can be created from gridded data using
+```python
+from tools.plotting import profile_plot
+```
+where either `mean` or `rms` are available.
+
+#### Example
+```python
+dset = tools.load_dataset(filename='sqg_28x128x32_fields.nc', verbose=False)
+for step in [0, 2, 4, 6, 8, 10]:
+    time = dset.get_axis(varname='t')
+    time = round(float(time[step]))
+    profile_plot(ax=ax,
+                 dset=dset,
+                 step=step,
+                 axis='z',
+                 field='x_vorticity',
+                 measure='rms',
+                 label=r't = ' + str(time))
+dset.close()
+
+ax.legend()
+plt.tight_layout()
+
+plt.savefig('rms_profile_xi.png', bbox_inches='tight')
+plt.close()
+```
 
 ## Slice plot
 You can create slice plots from gridded data with
@@ -40,4 +68,5 @@ for i, ax in enumerate(grid):
                cmap=plt.cm.seismic)
 
 plt.savefig('image_grid.png', bbox_inches='tight')
+plt.close()
 ```
