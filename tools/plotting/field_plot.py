@@ -1,6 +1,8 @@
 from tools.netcdf.field_dataset import FieldDataset
 import matplotlib as mpl
 import numpy as np
+import scipy
+from tools.geometry import Plane
 
 def profile_plot(ax: mpl.axes._axes.Axes,
                  dset: FieldDataset,
@@ -59,3 +61,57 @@ def profile_plot(ax: mpl.axes._axes.Axes,
         ax.plot(_axis, _profile, **kwargs)
         ax.set_xlabel(axis)
         ax.set_ylabel(lab + dset.get_label(field))
+
+
+def slice_plot(ax: mpl.axes._axes.Axes,
+               dset: FieldDataset,
+               step: int,
+               plane: Plane,
+               field: str,
+               **kwargs):
+
+    _method = kwargs.get('method', 'linear')
+
+    _copy_periodic = {'x', 'y'}
+
+    _data = dset.get_data(varname=field, step=step, copy_periodic=_copy_periodic)
+
+    _x = dset.get_axis(varname='x', copy_periodic=_copy_periodic)
+    _y = dset.get_axis(varname='y', copy_periodic=_copy_periodic)
+    _z = dset.get_axis(varname='z')
+
+    interp = scipy.interpolate.RegularGridInterpolator(points=(_x, _y, _z),
+                                                       values=_data,
+                                                       method=_method)
+
+    if plane.orientation == 'xy':
+        _pg, _qg = dset.get_meshgrid(coords={'x', 'y'}, copy_periodic=_copy_periodic)
+        _rg = plane.height * np.ones(_pg.size)
+        pts = np.column_stack([_pg.ravel(), _qg.ravel(), _rg])
+    elif plane.orientation == 'xz':
+        _pg, _qg = dset.get_meshgrid(coords={'x', 'z'}, copy_periodic=_copy_periodic)
+        _rg = plane.height * np.ones(_pg.size)
+        pts = np.column_stack([_pg.ravel(), _rg, _qg.ravel()])
+    elif plane.orientation == 'yz':
+        _pg, _qg = dset.get_meshgrid(coords={'y', 'z'}, copy_periodic=_copy_periodic)
+        _rg = plane.height * np.ones(_pg.size)
+        pts = np.column_stack([_rg, _pg.ravel(), _qg.ravel()])
+    else:
+        raise RuntimeError("Only xy-, xz- or yz-plane supported.")
+
+    _values = interp(pts).reshape(_pg.shape)
+
+    ax.pcolormesh(_pg, _qg, _values, shading='gouraud')
+
+    #xmin = _pg.min()
+    #xmax = _qg.max()
+    #ymin = _pg.min()
+    #ymax = _qg.max()
+    #ax.imshow(X=_values.transpose(),
+              #interpolation='bilinear',
+              #interpolation_stage='data',
+              #origin='lower',
+              #extent=[xmin, xmax, ymin, ymax],
+              #aspect='auto')
+
+

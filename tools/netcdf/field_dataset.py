@@ -53,7 +53,7 @@ class FieldDataset(Dataset):
             axis = np.append(axis, abs(axis[0]))
         return axis
 
-    def get_meshgrid(self, copy_periodic: set[str]):
+    def get_meshgrid(self, coords: set[str] = {'x', 'y', 'z'}, copy_periodic: set[str] = {'x', 'y'}):
         """
         Return grid points in a mesh.
         """
@@ -61,12 +61,29 @@ class FieldDataset(Dataset):
         y = self.get_axis('y', copy_periodic)
         z = self.get_axis('z')
 
-        xg, yg, zg = np.meshgrid(x, y, z, indexing='ij')
-        assert np.all(xg[:, 0, 0] == x)
-        assert np.all(yg[0, :, 0] == y)
-        assert np.all(zg[0, 0, :] == z)
-
-        return xg, yg, zg
+        if coords == {'x', 'y', 'z'}:
+            xg, yg, zg = np.meshgrid(x, y, z, indexing='ij')
+            assert np.all(xg[:, 0, 0] == x)
+            assert np.all(yg[0, :, 0] == y)
+            assert np.all(zg[0, 0, :] == z)
+            return xg, yg, zg
+        elif coords == {'x', 'y'}:
+            xg, yg = np.meshgrid(x, y, indexing='ij')
+            assert np.all(xg[:, 0] == x)
+            assert np.all(yg[0, :] == y)
+            return xg, yg
+        elif coords == {'x', 'z'}:
+            xg, zg = np.meshgrid(x, z, indexing='ij')
+            assert np.all(xg[:, 0] == x)
+            assert np.all(zg[0, :] == z)
+            return xg, zg
+        elif coords == {'y', 'z'}:
+            yg, zg = np.meshgrid(y, z, indexing='ij')
+            assert np.all(yg[:, 0] == y)
+            assert np.all(zg[0, :] == z)
+            return yg, zg
+        else:
+            raise RuntimeError("Only 'x', 'y' and/or 'z'.")
 
     def get_data(self,
                  varname: str,
@@ -121,16 +138,10 @@ class FieldDataset(Dataset):
             return self._copy_y_periodic(field)
         elif copy_periodic == {'x', 'y'}:
             if self.is_three_dimensional:
-                nz, ny, nx = field.shape
-                field_copy = np.empty((nz, ny, nx))
-                field_copy[:, 0:ny, 0:nx] = field.copy()
-                field_copy[:, ny, :] = field_copy[:, 0, :]
-                field_copy[:, :, nx] = field_copy[:, :, 0]
+                field_copy = self._copy_x_periodic(field)
+                field_copy = self._copy_y_periodic(field_copy)
             else:
-                nz, nx = field.shape
-                field_copy = np.empty((nz, nx+1))
-                field_copy[:, 0:nx] = field.copy()
-                field_copy[:, nx] = field_copy[:, 0]
+                field_copy = self._copy_x_periodic(field)
             return field_copy
         return field
 
