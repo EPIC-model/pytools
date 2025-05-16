@@ -3,7 +3,7 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 import matplotlib as mpl
 
 
-def create_image_grid(figsize: tuple[float, float], dpi: int, **kwargs):
+def create_image_grid(nrows: int, ncols: int, figsize: tuple[float, float], dpi: int, **kwargs):
     """
     Create am ImageGrid. For further info on **kwargs check the reference.
 
@@ -13,13 +13,16 @@ def create_image_grid(figsize: tuple[float, float], dpi: int, **kwargs):
     """
 
     _rect = kwargs.pop('rect', 111)
-    _nrows_ncols = kwargs.pop('nrows_ncols', (2, 3))
     _axes_pad = kwargs.pop('axes_pad', 0.07)
+
+    # ensure nrows_ncols is not provided
+    # because we use arguments nrows and ncols instead
+    _nrows_ncols = kwargs.pop('nrows_ncols', None)
 
     fig = plt.figure(figsize=figsize, dpi=dpi)
     grid = ImageGrid(fig=fig,
                      rect=_rect,
-                     nrows_ncols=_nrows_ncols,
+                     nrows_ncols=(nrows, ncols),
                      axes_pad=_axes_pad,
                      **kwargs)
 
