@@ -7,6 +7,7 @@ from tools.plotting import line_plot
 ```python
 import tools
 from tools.plotting import line_plot
+import matplotlib.pyplot as plt
 
 dset = tools.load_dataset(filename='sqg_128x128x32_field_stats.nc', verbose=False)
 
