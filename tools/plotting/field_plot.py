@@ -16,6 +16,9 @@ def profile_plot(ax: mpl.axes._axes.Axes,
 
     Parameters
     ----------
+    ax: plotting axis
+    dset: field dataset
+    step: time frame of dataset
     axis: 'x', 'y' or 'z'
     field: name of field data
     measure: 'mean' or 'rms'
@@ -69,6 +72,23 @@ def slice_plot(ax: mpl.axes._axes.Axes,
                plane: Plane,
                field: str,
                **kwargs):
+    """
+    Generate a slice plot.
+
+    Parameters
+    ----------
+    ax: plotting axis
+    dset: field dataset
+    step: time frame of dataset
+    plane: where to take the slice
+    field: name of field
+    """
+
+    if not isinstance(dset, FieldDataset):
+        raise TypeError("Dataset must be of type 'FieldDataset'")
+
+    if not dset.is_open():
+        raise RuntimeError("Dataset is closed.")
 
     _method = kwargs.get('interpolation', 'linear')
 
