@@ -70,7 +70,7 @@ def slice_plot(ax: mpl.axes._axes.Axes,
                field: str,
                **kwargs):
 
-    _method = kwargs.get('method', 'linear')
+    _method = kwargs.get('interpolation', 'linear')
 
     _copy_periodic = {'x', 'y'}
 
