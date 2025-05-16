@@ -3,7 +3,7 @@ Profile plots can be created from gridded data using
 ```python
 from tools.plotting import profile_plot
 ```
-where either `mean` or `rms` are available.
+where you can use either `mean` or `rms` (root-mean-square).
 
 #### Example
 ```python
