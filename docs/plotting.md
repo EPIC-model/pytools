@@ -1,13 +1,42 @@
+## Line plot
+With statistics datasets you can create line plots, i.e.
+```python
+from tools.plotting import line_plot
+```
+#### Example
+```python
+import tools
+from tools.plotting import line_plot
+import matplotlib.pyplot as plt
+
+dset = tools.load_dataset(filename='sqg_128x128x32_field_stats.nc', verbose=False)
+
+line_plot(ax=ax,
+          dset=dset, x='t',
+          y='ke',
+          marker='o')
+
+dset.close()
+
+plt.tight_layout()
+plt.show()
+plt.close()
+```
+
 ## Profile plot
 Profile plots can be created from gridded data using
 ```python
 from tools.plotting import profile_plot
 ```
-where either `mean` or `rms` are available.
+where you can use either `mean` or `rms` (root-mean-square).
 
 #### Example
 ```python
-dset = tools.load_dataset(filename='sqg_28x128x32_fields.nc', verbose=False)
+import tools
+from tools.plotting import profile_plot
+import matplotlib.pyplot as plt
+
+dset = tools.load_dataset(filename='sqg_128x128x32_fields.nc', verbose=False)
 for step in [0, 2, 4, 6, 8, 10]:
     time = dset.get_axis(varname='t')
     time = round(float(time[step]))
@@ -50,7 +79,7 @@ fig, grid = create_image_grid(nrows=2,
                               cbar_pad=0.05,
                               axes_pad=(0.2, 0.45))
 
-dset = tools.load_dataset(filename='sqg_28x128x32_fields.nc', verbose=False)
+dset = tools.load_dataset(filename='sqg_128x128x32_fields.nc', verbose=False)
 
 # define plane where to take slice
 xz_plane = PlaneXZ(y=0.0)

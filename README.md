@@ -2,8 +2,18 @@
 
 ## How to set up your Python environment
 After downloading and installing [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main),
-you can install all required Python packages into a new Python environment with
+you can install all required Python packages into a new Python environment with either
 ```bash
+conda config --add channels conda-forge
+conda create --name pytools python=3.13.3
+conda install conda-forge::numpy
+conda install conda-forge::scipy
+conda install conda-forge::matplotlib
+conda install conda-forge::netcdf4
+conda install conda-forge::colorcet
+```
+or
+```
 conda config --add channels conda-forge
 conda create --name pytools python=3.13.3 --file requirements.txt
 ```
