@@ -108,20 +108,28 @@ def slice_plot(ax: mpl.axes._axes.Axes,
         _pg, _qg = dset.get_meshgrid(coords={'x', 'y'}, copy_periodic=_copy_periodic)
         _rg = plane.height * np.ones(_pg.size)
         pts = np.column_stack([_pg.ravel(), _qg.ravel(), _rg])
+        xlabel = 'x'
+        ylabel = 'y'
     elif plane.orientation == 'xz':
         _pg, _qg = dset.get_meshgrid(coords={'x', 'z'}, copy_periodic=_copy_periodic)
         _rg = plane.height * np.ones(_pg.size)
         pts = np.column_stack([_pg.ravel(), _rg, _qg.ravel()])
+        xlabel = 'x'
+        ylabel = 'z'
     elif plane.orientation == 'yz':
         _pg, _qg = dset.get_meshgrid(coords={'y', 'z'}, copy_periodic=_copy_periodic)
         _rg = plane.height * np.ones(_pg.size)
         pts = np.column_stack([_rg, _pg.ravel(), _qg.ravel()])
+        xlabel = 'y'
+        ylabel = 'z'
     else:
         raise RuntimeError("Only xy-, xz- or yz-plane supported.")
 
     _values = interp(pts).reshape(_pg.shape)
 
     ax.pcolormesh(_pg, _qg, _values, shading='gouraud')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     #xmin = _pg.min()
     #xmax = _qg.max()
