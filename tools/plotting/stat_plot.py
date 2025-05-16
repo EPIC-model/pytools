@@ -14,8 +14,8 @@ def line_plot(ax: mpl.axes._axes.Axes, dset: StatDataset, x: str, y: str, **kwar
     if not dset.is_open():
         raise RuntimeError("Dataset is closed.")
 
-    xdata = dset.get_data(name=x, step=-1)
-    ydata = dset.get_data(name=y, step=-1)
+    xdata = dset.get_data(varname=x, step=-1)
+    ydata = dset.get_data(varname=y, step=-1)
     ax.plot(xdata, ydata, **kwargs)
-    ax.set_xlabel(dset.get_label(name=x))
-    ax.set_ylabel(dset.get_label(name=y))
+    ax.set_xlabel(dset.get_label(varname=x))
+    ax.set_ylabel(dset.get_label(varname=y))
