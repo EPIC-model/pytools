@@ -28,7 +28,7 @@ def create_image_grid(nrows: int, ncols: int, figsize: tuple[float, float], dpi:
 
     return fig, grid
 
-def remove_axis_ticks(ax: mpl.axes._axes.Axes, axes: set[str] = {'x', 'y'}):
+def remove_axis_ticks(ax, axes: set[str] = {'x', 'y'}):
     """
     Remove ticks from a plotting axis.
     """

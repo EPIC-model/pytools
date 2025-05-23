@@ -66,7 +66,7 @@ def profile_plot(ax,
         ax.set_ylabel(lab + dset.get_label(field))
 
 
-def slice_plot(ax: mpl.axes._axes.Axes,
+def slice_plot(ax,
                dset: FieldDataset,
                step: int,
                plane: Plane,
