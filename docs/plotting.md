@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 dset = tools.load_dataset(filename='sqg_128x128x32_field_stats.nc', verbose=False)
 
+ax = plt.gca()
 line_plot(ax=ax,
           dset=dset, x='t',
           y='ke',
