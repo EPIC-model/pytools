@@ -1,7 +1,7 @@
 from tools.netcdf.stat_dataset import StatDataset
 import matplotlib as mpl
 
-def line_plot(ax: mpl.axes._axes.Axes, dset: StatDataset, x: str, y: str, **kwargs):
+def line_plot(ax, dset: StatDataset, x: str, y: str, **kwargs):
     """
     Generate a line plot.
 

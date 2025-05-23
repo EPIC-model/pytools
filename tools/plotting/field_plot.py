@@ -4,7 +4,7 @@ import numpy as np
 import scipy
 from tools.geometry import Plane
 
-def profile_plot(ax: mpl.axes._axes.Axes,
+def profile_plot(ax,
                  dset: FieldDataset,
                  step: int,
                  axis: str,
