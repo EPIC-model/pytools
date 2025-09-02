@@ -190,7 +190,7 @@ class FieldWriter(NetcdfWriter):
                 var = self._ncfile.variables[varname]
             var[ti, :, :, :] = values[:, :, :]
 
-        self._add_dataset_properties(var)
+        self._add_dataset_properties(var, **kwargs)
 
 
 class ParcelWriter(NetcdfWriter):
@@ -224,4 +224,4 @@ class ParcelWriter(NetcdfWriter):
                                           dimensions=('t', 'n_parcels'))
         var[0, :] = values[:]
 
-        self._add_dataset_properties(var)
+        self._add_dataset_properties(var, **kwargs)
